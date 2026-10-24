@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Password Vault & Cyber Scan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { cyber: { 500: '#10b981', 900: '#064e3b', 950: '#022c22' } },
+                    animation: { 'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite', 'spin-slow': 'spin 3s linear infinite' }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; overflow: hidden; background-color: #020617; } 
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #020617; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+
+        /* ----- Shaffof Havorang (Glassmorphism) ----- */
+        #authOverlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: linear-gradient(135deg, rgba(2, 6, 23, 0.8), rgba(15, 23, 42, 0.7));
+            backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        .glass-panel {
+            background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25);
+            box-shadow: 0 8px 32px 0 rgba(14, 165, 233, 0.2); backdrop-filter: blur(25px);
+            border-radius: 24px; position: relative; overflow: hidden;
+        }
+        .glass-panel::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(56,189,248,0.15) 0%, transparent 60%);
+            animation: spin-slow 15s linear infinite; pointer-events: none;
+        }
+        .glass-input {
+            background: rgba(2, 6, 23, 0.4); border: 1px solid rgba(56, 189, 248, 0.3);
+            color: white; transition: all 0.3s ease;
+        }
+        .glass-input:focus {
+            background: rgba(2, 6, 23, 0.6); border-color: rgba(56, 189, 248, 0.8);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3); outline: none;
+        }
+        .glass-modal {
+            background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(51, 65, 85, 0.8);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); backdrop-filter: blur(16px);
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 relative">
+
+    <!-- MATRIX KIBER FON -->
+    <canvas id="matrixCanvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full"></canvas>
+    <div class="fixed inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/70 to-slate-950/95 z-0 pointer-events-none"></div>
+
+    <!-- ========================================== -->
+    <!-- XAVFSIZLIK LOGIN VA REGISTRATSIYA QATLAMI -->
+    <!-- ========================================== -->
+    <div id="authOverlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-md transition-all duration-500 p-4">
+        <div class="glass-panel text-center w-full max-w-md p-8 z-10 max-h-[95vh] overflow-y-auto">
+            <div id="authIconContainer" class="w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(14,165,233,0.3)] mb-4 transition-all">
+                <i id="authIcon" data-lucide="shield-check" class="w-7 h-7 stroke-[2]"></i>
+            </div>
+            <div class="mb-5">
+                <h2 id="authTitle" class="text-2xl font-extrabold text-white tracking-wide">Tizimga Kirish</h2>
+                <p id="authSubtitle" class="text-[11px] text-sky-200/70 mt-1 font-mono">Ma'lumotlar ombori himoyalangan</p>
+            </div>
+            
+            <div id="authAlert" class="hidden text-[11px] font-mono text-center py-2 px-3 rounded-lg mb-4 border transition-all"></div>
+            <div id="timerMsg" class="hidden text-[11px] text-amber-400 font-mono text-center bg-amber-500/10 border border-amber-500/20 py-2 rounded-lg mb-4">Bloklandingiz. Kuting: <span id="timeCount" class="font-bold text-lg"></span>s</div>
+
+            <!-- LOGIN FORMASI -->
+            <div id="loginSection">
+                <div class="flex justify-center bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 mb-5">
+                    <button type="button" id="tabUser" onclick="switchAuthTab('user')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-sky-500 text-slate-950 transition-all shadow-md shadow-sky-500/30">Foydalanuvchi</button>
+                    <button type="button" id="tabAdmin" onclick="switchAuthTab('admin')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all">Admin</button>
+                </div>
+                <form onsubmit="handleLogin(event)" class="space-y-3.5 text-left">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-300 uppercase tracking-widest mb-1 pl-1">Email manzili</label>
+                        <input type="email" id="loginEmail" required placeholder="user@gmail.com" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm font-mono focus:border-sky-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1 pl-1 pr-1">
+                            <label class="block text-[10px] font-bold text-slate-300 uppercase tracking-widest">Parol</label>
+                            <button type="button" id="forgotLinkBtn" onclick="toggleAuthMode('forgot')" class="text-[10px] font-bold text-sky-400 hover:text-sky-300 transition-colors">Unutdingizmi?</button>
+                        </div>
+                        <input type="password" id="loginPass" required placeholder="••••••••" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest focus:border-sky-500">
+                    </div>
+                    <button id="loginBtn" type="submit" class="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-sky-500/30 hover:scale-[1.02] transition-transform">KIRISH</button>
+                </form>
+                <div id="registerLinkContainer" class="mt-5 text-center">
+                    <button type="button" onclick="toggleAuthMode('register')" class="text-[11px] font-bold text-slate-400 hover:text-sky-400 transition-colors border-b border-slate-600 hover:border-sky-400 pb-0.5">Yangi hisob yaratish</button>
+                </div>
+            </div>
+
+            <!-- REGISTRATSIYA FORMASI -->
+            <div id="registerSection" class="hidden">
+                <form onsubmit="handleRegister(event)" class="space-y-3 text-left">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="regIsm" required placeholder="Ism" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs">
+                        <input type="text" id="regFamiliya" required placeholder="Familiya" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="regOchestva" required placeholder="Ochestva" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs">
+                        <input type="tel" id="regTel" required placeholder="Tel: +998" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs font-mono">
+                    </div>
+                    <input type="text" id="regManzil" required placeholder="Manzil..." class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs">
+                    <input type="email" id="regEmail" required placeholder="Email (Login uchun)" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs font-mono">
+                    <input type="password" id="regPass" required placeholder="Parol yarating" class="w-full glass-input focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs font-mono">
+                    <button type="submit" class="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-emerald-500/30 hover:scale-[1.02] transition-transform">RO'YXATDAN O'TISH</button>
+                </form>
+                <div class="mt-4 text-center">
+                    <button type="button" onclick="toggleAuthMode('login')" class="text-[11px] font-bold text-slate-400 hover:text-white">Orqaga qaytish</button>
+                </div>
+            </div>
+
+            <!-- PAROLNI TIKLASH FORMASI -->
+            <div id="forgotSection" class="hidden">
+                <form onsubmit="handleForgot(event)" class="space-y-4 text-left">
+                    <label class="block text-[10px] font-bold text-amber-200/70 uppercase mb-1 pl-1">Ro'yxatdan o'tgan email</label>
+                    <input type="email" id="forgotEmail" required placeholder="user@gmail.com" class="w-full glass-input focus:border-amber-500 rounded-xl px-4 py-3 text-sm font-mono">
+                    <button type="submit" class="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg hover:scale-[1.02] transition-transform">PAROLNI TIKLASH</button>
+                </form>
+                <div class="mt-4 text-center">
+                    <button type="button" onclick="toggleAuthMode('login')" class="text-[11px] font-bold text-slate-400 hover:text-white">Orqaga qaytish</button>
+                </div>
+            </div>
+
+            <!-- ADMIN VA FOYDALANUVCHI ALOQA QISMI -->
+            <div class="mt-6 pt-5 border-t border-slate-700/50 flex flex-col items-center gap-3">
+                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Admin bilan bog'lanish</span>
+                <div class="flex items-center gap-3">
+                    <a href="https://t.me/MT_Shox" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 rounded-lg border border-sky-500/20 transition-all">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                        MT_Shox
+                    </a>
+                    <a href="https://instagram.com/sanha.mr" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-pink-400 hover:text-white bg-pink-500/10 hover:bg-pink-500/20 px-3 py-1.5 rounded-lg border border-pink-500/20 transition-all">
+                        <!-- Instagram SVG Logo -->
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                        sanha.mr
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- ADMIN PANEL QISMI                          -->
+    <!-- ========================================== -->
+    <div id="adminAppContent" class="hidden relative z-10 w-full h-screen overflow-y-auto">
+        <header class="border-b border-red-500/30 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-30 px-6 py-3.5 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/40 text-red-400">
+                    <i data-lucide="terminal" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold text-white leading-tight flex items-center gap-2">
+                        <span>Cyber Command Center</span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">ADMIN</span>
+                    </h1>
+                    <p class="text-xs text-red-300/60 hidden sm:block">Foydalanuvchilarni boshqarish paneli</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="changeWallpaper()" title="Matrix Rangi" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-sky-400 transition border border-slate-700/60">
+                    <i data-lucide="palette" class="w-4 h-4"></i>
+                </button>
+                <button type="button" onclick="logoutSystem()" class="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 transition flex items-center gap-2 transition border border-red-500/30 font-bold text-xs">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Chiqish</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-slate-900/80 border border-red-500/20 rounded-2xl p-6 shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+                    <div class="flex items-center justify-between text-red-400 text-xs font-bold uppercase mb-2">
+                        <span>Jami Foydalanuvchilar</span>
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </div>
+                    <span id="adminTotalUsers" class="text-4xl font-black text-white">0</span>
+                </div>
+                <div class="bg-slate-900/80 border border-sky-500/20 rounded-2xl p-6">
+                    <div class="flex items-center justify-between text-sky-400 text-xs font-bold uppercase mb-2">
+                        <span>Tizim Holati</span>
+                        <i data-lucide="activity" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-2xl font-black text-emerald-400">YAXSHI</span>
+                </div>
+                <div class="bg-slate-900/80 border border-purple-500/20 rounded-2xl p-6">
+                    <div class="flex items-center justify-between text-purple-400 text-xs font-bold uppercase mb-2">
+                        <span>Xavfsizlik Jurnali</span>
+                        <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                    </div>
+                    <span class="text-sm font-bold text-slate-400">Barqaror</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 lg:p-8 shadow-2xl backdrop-blur-xl">
+                <h3 class="text-lg font-extrabold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5 text-sky-400"></i> Ro'yxatdan O'tgan Foydalanuvchilar
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-700/50 text-[10px] text-slate-400 uppercase tracking-widest bg-slate-950/50">
+                                <th class="p-3 font-bold">#</th>
+                                <th class="p-3 font-bold">Ism va Familiya</th>
+                                <th class="p-3 font-bold">Email</th>
+                                <th class="p-3 font-bold">Holat</th>
+                                <th class="p-3 font-bold text-right">Boshqaruv</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody" class="divide-y divide-slate-800 border-b border-slate-800 text-sm">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- FOYDALANUVCHI ASOSIY PANELI (VAULT)        -->
+    <!-- ========================================== -->
+    <div id="mainAppContent" class="hidden relative z-10 w-full h-screen overflow-y-auto pb-20">
+        <header class="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-30 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="shield-check" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold text-white leading-tight flex items-center gap-2">
+                        <span id="t-appTitle">Password Health & Vault</span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">PRO</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400" id="userWelcomeText">Xush kelibsiz</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div class="relative flex items-center bg-slate-950/90 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 shadow-inner">
+                    <i data-lucide="languages" class="w-4 h-4 text-emerald-400 mr-2 shrink-0"></i>
+                    <select id="langSelect" onchange="changeLanguage(this.value)" class="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer pr-1">
+                        <option value="uz">🇺🇿 O'zbekcha (Lotin)</option>
+                        <option value="uz_cyrl">🇺🇿 Ўзбекча (Кирилл)</option>
+                        <option value="en">🇺🇸 English</option>
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="tr">🇹🇷 Türkçe</option>
+                    </select>
+                </div>
+
+                <button type="button" onclick="changeWallpaper()" title="Matrix Rangi" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-sky-400 transition border border-slate-700/60">
+                    <i data-lucide="palette" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="soundBtn" onclick="toggleAudio()" title="Musiqa" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-400 transition border border-slate-700/60">
+                    <i data-lucide="music" class="w-4 h-4"></i>
+                </button>
+
+                <button type="button" onclick="exportData()" title="Eksport" class="p-2 sm:px-3 sm:py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition border border-slate-700 flex items-center gap-1.5">
+                    <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="hidden md:inline" id="t-export">Eksport</span>
+                </button>
+                <button type="button" onclick="document.getElementById('importFile').click()" title="Import" class="p-2 sm:px-3 sm:py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition border border-slate-700 flex items-center gap-1.5">
+                    <i data-lucide="upload" class="w-4 h-4 text-cyan-400"></i>
+                    <span class="hidden md:inline" id="t-import">Import</span>
+                </button>
+                <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+
+                <button type="button" onclick="openAddModal()" class="px-3.5 py-2 text-xs sm:text-sm font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 transition flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i>
+                    <span id="t-addPassword">Yangi Parol</span>
+                </button>
+                
+                <button type="button" onclick="logoutSystem()" title="Tizimdan chiqish" class="p-2 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500 hover:text-white text-red-400 transition flex items-center gap-2 font-bold text-xs">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Chiqish</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+            
+            <!-- 1. TAHLIL QILISH OYNASI -->
+            <section class="bg-slate-900/80 border border-slate-700/60 rounded-3xl p-6 lg:p-8 shadow-2xl backdrop-blur-xl space-y-6 relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-700/60">
+                    <div>
+                        <h2 id="t-liveTesterTitle" class="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2">
+                            <i data-lucide="cpu" class="w-6 h-6 text-emerald-400"></i>
+                            Kiber-Xavfsizlik Tahlil Tizimi
+                        </h2>
+                        <p id="t-liveTesterSub" class="text-xs sm:text-sm text-slate-300 mt-1">Parolingizni kiritib, 15 soniyalik musiqiy tahlilni boshlang</p>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 text-xs font-semibold self-start md:self-auto shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                        <span id="t-privacyBadge">Lokal API (Serverga yuborilmaydi)</span>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input type="password" id="mainPassInput" oninput="resetAnalysisState()" placeholder="Tekshiriladigan parolni kiriting..." class="w-full bg-slate-950/80 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl px-5 py-4 text-base sm:text-lg text-white font-mono tracking-wide placeholder-slate-500 focus:outline-none transition-all shadow-inner pr-28">
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <button type="button" onclick="toggleMainPassVisibility()" class="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition" title="Ko'rsatish/Yashirish">
+                                <i id="mainPassEye" data-lucide="eye" class="w-5 h-5"></i>
+                            </button>
+                            <button type="button" onclick="generateAndSetMainPass()" class="p-2.5 text-emerald-400 hover:text-emerald-300 rounded-xl hover:bg-slate-800 transition" title="Random Parol Yaratish">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="startFullSecurityScan()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-extrabold text-sm sm:text-base tracking-wide shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all transform active:scale-[0.99] flex items-center justify-center gap-3">
+                        <i data-lucide="play-circle" class="w-6 h-6 stroke-[2.5]"></i>
+                        <span id="t-runBtnText">Tahlilni Boshlash</span>
+                    </button>
+                </div>
+
+                <!-- Live Results -->
+                <div id="resultsContainer" class="hidden space-y-6 pt-4 border-t border-slate-700/60">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-slate-950/80 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                            <span id="t-cardScoreLabel" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Xavfsizlik Bali</span>
+                            <div class="my-2 flex items-baseline gap-2">
+                                <span id="resScoreVal" class="text-3xl font-extrabold text-emerald-400">0%</span>
+                                <span id="resScoreText" class="text-xs font-semibold text-slate-300">--</span>
+                            </div>
+                            <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div id="resScoreBar" class="h-full bg-emerald-500 transition-all duration-700" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950/80 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                            <span id="t-cardCrackLabel" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Buzish Vaqti</span>
+                            <div class="my-2">
+                                <span id="resCrackTime" class="text-2xl sm:text-3xl font-extrabold text-cyan-400">Instant</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500">100 G/Hash tezligida</p>
+                        </div>
+                        <div class="bg-slate-950/80 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                            <span id="t-cardEntropyLabel" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Entropiya Darajasi</span>
+                            <div class="my-2">
+                                <span id="resEntropy" class="text-2xl sm:text-3xl font-extrabold text-purple-400">0 bits</span>
+                            </div>
+                            <p id="resEntropyDesc" class="text-[11px] text-slate-500">Kriptografik murakkablik</p>
+                        </div>
+                        <div class="bg-slate-950/80 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                            <span id="t-cardBreachLabel" class="text-xs font-bold text-slate-400 uppercase tracking-wider">O'g'irlangan Parollar</span>
+                            <div class="my-2 flex items-center gap-2">
+                                <i id="resBreachIcon" data-lucide="shield-check" class="w-6 h-6 text-emerald-400"></i>
+                                <span id="resBreachText" class="text-sm font-bold text-emerald-400">Tekshirilmoqda...</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500">Real SHA-1 tekshiruvi</p>
+                        </div>
+                    </div>
+
+                    <!-- Criteria -->
+                    <div class="space-y-4">
+                        <h3 id="t-criteriaHeader" class="text-base font-extrabold text-white flex items-center gap-2">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-emerald-400"></i>
+                            Parol Xavfsizligi Mezonlari
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="criteriaGrid">
+                            <div id="critLengthCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critLength" class="text-xs font-bold text-slate-300">1. Uzunlik</span><i id="critLengthIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critLengthDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                            <div id="critUpperCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critUpper" class="text-xs font-bold text-slate-300">2. Katta Harflar</span><i id="critUpperIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critUpperDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                            <div id="critLowerCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critLower" class="text-xs font-bold text-slate-300">3. Kichik Harflar</span><i id="critLowerIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critLowerDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                            <div id="critNumCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critNum" class="text-xs font-bold text-slate-300">4. Raqamlar</span><i id="critNumIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critNumDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                            <div id="critSymCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critSym" class="text-xs font-bold text-slate-300">5. Maxsus Belgilar</span><i id="critSymIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critSymDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                            <div id="critPatCard" class="bg-slate-950/90 border border-slate-700 rounded-2xl p-4 space-y-2 border-l-4 border-l-slate-600">
+                                <div class="flex items-center justify-between"><span id="t-critPat" class="text-xs font-bold text-slate-300">6. Ketma-ketlik</span><i id="critPatIcon" data-lucide="circle-slash" class="w-4 h-4 text-slate-500"></i></div>
+                                <p id="critPatDet" class="text-xs text-slate-400">Tahlil o'tkazilmadi.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. SAQLANGAN PAROLLAR (VAULT) ORIGINAL QISMI -->
+            <section class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                            <span id="t-vStatScore">Umumiy Vault Bali</span><i data-lucide="shield" class="w-4 h-4 text-emerald-400"></i>
+                        </div>
+                        <div class="mt-2 flex items-baseline gap-2"><span id="vaultAvgScore" class="text-3xl font-black text-white">0%</span></div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                            <span id="t-vStatTotal">Jami Saqlangan</span><i data-lucide="database" class="w-4 h-4 text-blue-400"></i>
+                        </div>
+                        <div class="mt-2"><span id="vaultTotalCount" class="text-3xl font-black text-white">0</span></div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                            <span id="t-vStatWeak">Zaif Parollar</span><i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+                        </div>
+                        <div class="mt-2"><span id="vaultWeakCount" class="text-3xl font-black text-amber-400">0</span></div>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+                        <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                            <span id="t-vStatOld">Eski Parollar (90+ Kun)</span><i data-lucide="clock" class="w-4 h-4 text-purple-400"></i>
+                        </div>
+                        <div class="mt-2"><span id="vaultOldCount" class="text-3xl font-black text-purple-400">0</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                    <div class="relative w-full sm:w-72">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="vaultSearch" oninput="renderVault()" placeholder="Qidirish..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <select id="vaultCategoryFilter" onchange="renderVault()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:border-emerald-500">
+                            <option value="ALL">Barcha Toifalar</option>
+                            <option value="Ijtimoiy">Ijtimoiy tarmoqlar</option>
+                            <option value="Ish/O'qish">Ish / O'qish</option>
+                            <option value="Moliya">Moliya / Bank</option>
+                            <option value="Boshqa">Boshqa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="vaultList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- 3. YANGI: TAHLIL QILINGAN PAROLLAR TARIXI (Pastda) -->
+            <section class="bg-slate-900/80 border border-slate-700/60 rounded-3xl p-6 shadow-2xl backdrop-blur-xl mt-8">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-700/60 pb-3">
+                    <h3 class="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
+                        <i data-lucide="history" class="w-5 h-5 text-sky-400"></i>
+                        Tahlil Qilingan Parollar Tarixi
+                    </h3>
+                    <button type="button" onclick="clearHistory()" class="text-xs font-bold text-red-400 hover:text-red-300 transition flex items-center gap-1 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">
+                        <i data-lucide="trash" class="w-3 h-3"></i> Tozalash
+                    </button>
+                </div>
+                <div id="analysisHistoryList" class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                    <!-- Tarix shu yerga JS orqali joylanadi -->
+                </div>
+            </section>
+
+            <!-- FOYDALANUVCHI INTERFEYSIDAGI ALOQA QISMI -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-700/60">
+                <span class="text-[11px] text-slate-400 font-mono">Tizim administratori bilan bog'lanish:</span>
+                <div class="flex items-center gap-3">
+                    <a href="https://t.me/MT_Shox" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-white bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 hover:border-sky-500 transition-all shadow-sm">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                        MT_Shox
+                    </a>
+                    <a href="https://instagram.com/sanha.mr" target="_blank" class="flex items-center gap-1.5 text-xs font-bold text-pink-400 hover:text-white bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 hover:border-pink-500 transition-all shadow-sm">
+                        <!-- Instagram SVG Logo -->
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                        sanha.mr
+                    </a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BARCHA MODALLAR                            -->
+    <!-- ========================================== -->
+
+    <!-- Tahlil Oynasi Overlay (15 soniya) -->
+    <div id="scanOverlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[10000] flex flex-col items-center justify-center p-6 hidden">
+        <div class="max-w-md w-full text-center space-y-8 relative z-10">
+            <div class="relative w-40 h-40 mx-auto flex items-center justify-center">
+                <div class="absolute inset-0 rounded-full border-[8px] border-emerald-500/10 border-t-emerald-400 border-r-teal-400 animate-spin"></div>
+                <div class="absolute inset-3 rounded-full border-[4px] border-cyan-500/20 border-b-cyan-400 border-l-blue-500 animate-spin-slow"></div>
+                <div class="w-24 h-24 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.3)]">
+                    <i data-lucide="fingerprint" class="w-12 h-12 text-emerald-400 animate-pulse"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black text-white tracking-[0.3em] drop-shadow-md">KIBER TAHLIL</h3>
+            <p id="scanStepText" class="text-sm text-emerald-400 font-mono tracking-wide">Musiqiy tahlil boshlanmoqda...</p>
+            <div class="space-y-2">
+                <div class="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-700/50 shadow-inner">
+                    <div id="scanProgressBar" class="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full transition-all duration-300 relative w-[0%]"></div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 font-mono">
+                    <span id="scanPercent">0%</span>
+                    <span id="scanTimeLeft">~ 15s qoldi</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin uchun Foydalanuvchi Parollarini Ko'rish Modali -->
+    <div id="adminViewUserModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9950] hidden flex items-center justify-center p-4">
+        <div class="glass-modal rounded-3xl w-full max-w-3xl max-h-[80vh] flex flex-col relative border-sky-500/30">
+            <header class="p-5 border-b border-slate-700/50 flex justify-between items-center bg-sky-500/5 rounded-t-3xl">
+                <div>
+                    <h2 class="text-lg font-extrabold text-white flex items-center gap-2"><i data-lucide="eye" class="text-sky-400 w-5 h-5"></i> Foydalanuvchi Parollari</h2>
+                    <p id="adminViewUserEmail" class="text-xs font-mono text-slate-400 mt-1">user@gmail.com</p>
+                </div>
+                <button type="button" onclick="document.getElementById('adminViewUserModal').classList.add('hidden')" class="p-2 bg-slate-800 rounded-xl text-slate-300"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </header>
+            <div class="flex-1 overflow-y-auto p-5">
+                <div id="adminViewUserList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Tanlangan userning parollari -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Yangi Parol / Tahrirlash Modali -->
+    <div id="passwordModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[10000] hidden flex items-center justify-center p-4">
+        <div class="glass-modal border border-slate-700 rounded-3xl w-full max-w-sm p-6 space-y-5">
+            <div class="flex justify-between items-center">
+                <h3 id="modalTitle" class="text-lg font-extrabold text-white flex items-center gap-2"><i data-lucide="key" class="text-emerald-400 w-5 h-5"></i> Yangi Parol</h3>
+                <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <!-- XATOLIK TUZATILGAN JOY: ID qo'shildi! -->
+            <form id="passForm" onsubmit="saveVaultPassword(event)" class="space-y-4">
+                <input type="hidden" id="editId">
+                <input type="text" id="serviceInput" required placeholder="Xizmat Nomi (Google, h.k.)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
+                <input type="text" id="usernameInput" required placeholder="Login yoki Email" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
+                <div>
+                    <div class="flex justify-between mb-1"><span class="text-[10px] font-bold text-slate-400 uppercase pl-1">Parol</span><button type="button" onclick="document.getElementById('passwordInput').value = getSecureRandomPassword(16)" class="text-[10px] text-emerald-400 font-bold">Avto Yaratish</button></div>
+                    <input type="password" id="passwordInput" required placeholder="••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono outline-none focus:border-emerald-500">
+                </div>
+                <select id="categoryInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
+                    <option value="Ijtimoiy">Ijtimoiy</option><option value="Ish/O'qish">Ish/O'qish</option><option value="Moliya">Moliya</option><option value="Boshqa">Boshqa</option>
+                </select>
+                <button type="submit" class="w-full py-3 rounded-xl bg-emerald-500 text-slate-950 text-sm font-extrabold hover:bg-emerald-400">SAQLASH</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- O'chirishni Tasdiqlash Modali -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[10000] hidden flex items-center justify-center p-4">
+        <div class="glass-modal border border-red-500/30 rounded-3xl w-full max-w-xs p-6 text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto border border-red-500/30"><i data-lucide="trash-2" class="w-6 h-6"></i></div>
+            <div><h3 class="text-base font-bold text-white">O'chirilsinmi?</h3><p class="text-xs text-slate-400 mt-1" id="deleteTargetName"></p></div>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeDeleteModal()" class="flex-1 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-slate-700">Yo'q</button>
+                <button type="button" id="confirmDeleteBtn" class="flex-1 py-2 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-400">Ha, O'chirish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Xabarnoma -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 border border-emerald-500/40 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-[10000] transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
+        <i id="toastIcon" data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
+        <span id="toastMsg" class="text-xs font-bold">Bajarildi</span>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT MANTIQ VA FUNKSIYALAR           -->
+    <!-- ========================================== -->
+    <script>
+        // --- Asosiy O'zgaruvchilar ---
+        let loginRole = 'user'; 
+        let currentUserEmail = ''; 
+        let failedAttempts = 0; let penaltySeconds = 0; let penaltyTimer = null; let penaltyMultiplier = 0;
+        let audioEnabled = true; let scanMusic = null;
+        let deleteTargetId = null;
+
+        const ADMIN_CREDENTIALS = { email: "admin@gmail.com", pass: "admin123" };
+        const DB_USERS_KEY = 'vault_users_db_final';
+        const DB_VAULT_KEY = 'vault_data_v6_final';
+        const DB_HISTORY_KEY = 'vault_history_final';
+
+        window.onload = function() {
+            try {
+                if(!localStorage.getItem(DB_USERS_KEY)) localStorage.setItem(DB_USERS_KEY, JSON.stringify([]));
+                if(!localStorage.getItem(DB_VAULT_KEY)) localStorage.setItem(DB_VAULT_KEY, JSON.stringify([]));
+                if(!localStorage.getItem(DB_HISTORY_KEY)) localStorage.setItem(DB_HISTORY_KEY, JSON.stringify([]));
+                switchAuthTab('user');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                initCanvas();
+            } catch(e) { console.error("Error:", e); }
+        };
+
+        // --- Matrix Animatsiyasi ---
+        let canvas, ctx, cw, ch, columns, drops;
+        const chars = '01'.split(''); const fontSize = 14; let mouse = { x: -1000, y: -1000 };
+        const matrixThemes = [{ normal: 'rgba(14, 165, 233, 0.4)', glow: 'rgba(56, 189, 248, 1)' }, { normal: 'rgba(16, 185, 129, 0.4)', glow: 'rgba(52, 211, 153, 1)' }, { normal: 'rgba(168, 85, 247, 0.4)', glow: 'rgba(192, 132, 252, 1)' }, { normal: 'rgba(239, 68, 68, 0.4)', glow: 'rgba(248, 113, 113, 1)' }];
+        let currentWallpaperIdx = 0;
+
+        function initCanvas() {
+            canvas = document.getElementById('matrixCanvas'); if(!canvas) return;
+            ctx = canvas.getContext('2d'); cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch;
+            columns = Math.floor(cw / fontSize); drops = []; for (let i = 0; i < columns; i++) drops[i] = Math.random() * ch / fontSize; 
+            window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+            window.addEventListener('mouseout', () => { mouse.x = -1000; mouse.y = -1000; });
+            window.addEventListener('resize', () => { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; columns = Math.floor(cw / fontSize); drops = []; for (let i = 0; i < columns; i++) drops[i] = Math.random() * ch / fontSize; });
+            setInterval(drawMatrix, 40);
+        }
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.1)'; ctx.fillRect(0, 0, cw, ch); ctx.font = fontSize + 'px "JetBrains Mono", monospace';
+            const theme = matrixThemes[currentWallpaperIdx % matrixThemes.length];
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                const x = i * fontSize, y = drops[i] * fontSize;
+                const dx = x - mouse.x, dy = y - mouse.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 150) { ctx.fillStyle = theme.glow; ctx.shadowBlur = 15; ctx.shadowColor = theme.glow; } 
+                else { ctx.fillStyle = theme.normal; ctx.shadowBlur = 0; }
+                ctx.fillText(text, x, y);
+                if (y > ch && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        function changeWallpaper() { currentWallpaperIdx++; showToast("Matrix rangi o'zgardi", "palette"); }
+
+        // --- Xavfsizlik va Login Tizimi ---
+        function switchAuthTab(role) {
+            loginRole = role;
+            const emInp = document.getElementById('loginEmail'); if(emInp) emInp.value = ""; 
+            const pwInp = document.getElementById('loginPass'); if(pwInp) pwInp.value = "";
+            const authAlert = document.getElementById('authAlert'); if(authAlert) authAlert.classList.add('hidden');
+
+            const tUser = document.getElementById('tabUser'), tAdmin = document.getElementById('tabAdmin');
+            const regLink = document.getElementById('registerLinkContainer'), forgotBtn = document.getElementById('forgotLinkBtn');
+            const iconContainer = document.getElementById('authIconContainer'), title = document.getElementById('authTitle'), sub = document.getElementById('authSubtitle'), btn = document.getElementById('loginBtn');
+
+            if(role === 'user') {
+                if(tUser) tUser.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-sky-500 text-slate-950 transition-all shadow-md shadow-sky-500/30";
+                if(tAdmin) tAdmin.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+                if(emInp) emInp.placeholder = "user@gmail.com";
+                if(regLink) regLink.style.display = 'block'; 
+                if(forgotBtn) forgotBtn.style.display = 'block'; 
+                if(title) title.innerText = "Foydalanuvchi Kirish"; if(sub) sub.innerText = "Ma'lumotlar ombori himoyalangan";
+                if(iconContainer) { iconContainer.className = "w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(14,165,233,0.3)] mb-4 transition-all"; iconContainer.innerHTML = '<i data-lucide="shield-check" class="w-7 h-7 stroke-[2]"></i>'; }
+                if(btn) btn.className = "w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-sky-500/30 hover:scale-[1.02] transition-transform";
+            } else {
+                if(tAdmin) tAdmin.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-red-500 text-white transition-all shadow-md shadow-red-500/30";
+                if(tUser) tUser.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+                if(emInp) emInp.placeholder = "admin@gmail.com";
+                if(regLink) regLink.style.display = 'none'; 
+                if(forgotBtn) forgotBtn.style.display = 'none'; 
+                if(title) title.innerText = "Admin Kirish"; if(sub) sub.innerText = "Cyber Command Center (Root)";
+                if(iconContainer) { iconContainer.className = "w-14 h-14 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(239,68,68,0.3)] mb-4 transition-all"; iconContainer.innerHTML = '<i data-lucide="terminal" class="w-7 h-7 stroke-[2]"></i>'; }
+                if(btn) btn.className = "w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-black text-sm tracking-wide shadow-lg shadow-red-500/30 hover:scale-[1.02] transition-transform";
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function toggleAuthMode(mode) {
+            ['loginSection', 'registerSection', 'forgotSection'].forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
+            const authAlert = document.getElementById('authAlert'); if(authAlert) authAlert.classList.add('hidden'); 
+            const title = document.getElementById('authTitle'), sub = document.getElementById('authSubtitle'), iconContainer = document.getElementById('authIconContainer');
+
+            if(mode === 'register') {
+                document.getElementById('registerSection').classList.remove('hidden');
+                if(title) title.innerText = "Yangi Akkaunt"; if(sub) sub.innerText = "Tizimga a'zo bo'lish";
+                if(iconContainer) { iconContainer.className = "w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(16,185,129,0.3)] mb-4 transition-all"; iconContainer.innerHTML = '<i data-lucide="user-plus" class="w-7 h-7 stroke-[2]"></i>'; }
+            } else if(mode === 'forgot') {
+                document.getElementById('forgotSection').classList.remove('hidden');
+                if(title) title.innerText = "Parolni Tiklash"; if(sub) sub.innerText = "Eski parolingiz ekranda chiqadi";
+                if(iconContainer) { iconContainer.className = "w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(245,158,11,0.3)] mb-4 transition-all"; iconContainer.innerHTML = '<i data-lucide="key-round" class="w-7 h-7 stroke-[2]"></i>'; }
+            } else {
+                document.getElementById('loginSection').classList.remove('hidden'); switchAuthTab(loginRole); return; 
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function showAuthAlert(msg, type='error') {
+            const box = document.getElementById('authAlert');
+            box.className = `text-[11px] font-mono text-center py-2 px-3 rounded-lg mb-4 border transition-all ${type==='error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`;
+            box.innerText = msg;
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('regEmail').value.trim();
+            const users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]');
+            if (users.some(u => u.email === email) || email === ADMIN_CREDENTIALS.email) { showAuthAlert("Bu email band!", "error"); return; }
+            
+            users.push({
+                ism: document.getElementById('regIsm').value.trim(), familiya: document.getElementById('regFamiliya').value.trim(),
+                ochestva: document.getElementById('regOchestva').value.trim(), tel: document.getElementById('regTel').value.trim(),
+                manzil: document.getElementById('regManzil').value.trim(), email: email, parol: document.getElementById('regPass').value,
+                status: 'active', regDate: new Date().toLocaleDateString('uz-UZ')
+            });
+            localStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+            e.target.reset(); showAuthAlert("Ro'yxatdan o'tdingiz!", "success");
+            setTimeout(() => { toggleAuthMode('login'); document.getElementById('loginEmail').value = email; }, 1500);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            if(penaltySeconds > 0) return;
+            const email = document.getElementById('loginEmail').value.trim(), pass = document.getElementById('loginPass').value;
+            
+            if (loginRole === 'admin') {
+                if (email === ADMIN_CREDENTIALS.email && pass === ADMIN_CREDENTIALS.pass) { loginSuccess('admin', email); } else { loginFailed(); }
+            } else {
+                const users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]');
+                const user = users.find(u => u.email === email && u.parol === pass);
+                if (user) {
+                    if(user.status === 'blocked') { showAuthAlert("Akkauntingiz bloklangan!", "error"); return; }
+                    loginSuccess('user', email, user.ism);
+                } else { loginFailed(); }
+            }
+        }
+
+        function loginSuccess(role, email, ism = '') {
+            currentUserEmail = email; failedAttempts = 0; penaltyMultiplier = 0; document.getElementById('authAlert').classList.add('hidden');
+            document.getElementById('authOverlay').style.opacity = '0';
+            
+            setTimeout(() => {
+                document.getElementById('authOverlay').style.display = 'none';
+                if (role === 'admin') {
+                    document.getElementById('adminAppContent').classList.remove('hidden'); renderAdminDashboard();
+                } else {
+                    document.getElementById('userWelcomeText').innerText = `${ism} | ${email}`;
+                    document.getElementById('mainAppContent').classList.remove('hidden');
+                    renderVault(); renderHistory();
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, 500);
+        }
+
+        function loginFailed() {
+            failedAttempts++; showAuthAlert("Kiritilgan ma'lumot xato!", "error");
+            if (failedAttempts % 3 === 0) {
+                penaltyMultiplier++; penaltySeconds = penaltyMultiplier * 10; 
+                document.getElementById('loginBtn').disabled = true; document.getElementById('authAlert').classList.add('hidden'); document.getElementById('timerMsg').classList.remove('hidden');
+                document.getElementById('timeCount').innerText = penaltySeconds;
+                penaltyTimer = setInterval(() => {
+                    penaltySeconds--; document.getElementById('timeCount').innerText = penaltySeconds;
+                    if(penaltySeconds <= 0) { clearInterval(penaltyTimer); document.getElementById('loginBtn').disabled = false; document.getElementById('timerMsg').classList.add('hidden'); }
+                }, 1000);
+            }
+        }
+
+        function handleForgot(e) {
+            e.preventDefault();
+            const email = document.getElementById('forgotEmail').value.trim();
+            const users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]');
+            const user = users.find(u => u.email === email);
+            if(user) showAuthAlert(`Topildi! Parolingiz: ${user.parol}`, "success"); else showAuthAlert("Email tizimda yo'q!", "error");
+        }
+
+        function logoutSystem() {
+            currentUserEmail = '';
+            document.getElementById('mainAppContent').classList.add('hidden'); document.getElementById('adminAppContent').classList.add('hidden');
+            document.getElementById('authOverlay').style.display = 'flex'; setTimeout(() => document.getElementById('authOverlay').style.opacity = '1', 50);
+            switchAuthTab('user');
+        }
+
+        // --- Admin Dashboard (Monitoring) ---
+        function renderAdminDashboard() {
+            const users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]');
+            document.getElementById('adminTotalUsers').innerText = users.length;
+            const tbody = document.getElementById('adminUsersTableBody');
+            
+            if (!users.length) { tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">Hech kim yo'q</td></tr>`; return; }
+            
+            tbody.innerHTML = users.map((u, i) => `
+                <tr class="hover:bg-slate-800/30 transition">
+                    <td class="p-3 text-slate-500">${i + 1}</td>
+                    <td class="p-3 text-sky-400 font-bold">${escapeHtml(u.ism)} ${escapeHtml(u.familiya)}</td>
+                    <td class="p-3 text-slate-300 font-mono">${escapeHtml(u.email)}</td>
+                    <td class="p-3"><span class="px-2 py-1 rounded text-[10px] font-bold ${u.status==='blocked'?'bg-red-500/20 text-red-400':'bg-emerald-500/20 text-emerald-400'}">${u.status==='blocked'?'BLOKLANGAN':'FAOL'}</span></td>
+                    <td class="p-3 flex justify-end gap-2">
+                        <button type="button" onclick="adminViewUserVault('${escapeHtml(u.email)}')" title="Parollarini ko'rish" class="p-1.5 bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-white rounded transition"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button type="button" onclick="adminToggleBlock('${escapeHtml(u.email)}')" title="Blok/Aktiv" class="p-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-900 rounded transition"><i data-lucide="power" class="w-4 h-4"></i></button>
+                        <button type="button" onclick="adminDeleteUser('${escapeHtml(u.email)}')" title="O'chirish" class="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function adminToggleBlock(email) {
+            let users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]');
+            const user = users.find(u => u.email === email);
+            if(user) { user.status = user.status === 'blocked' ? 'active' : 'blocked'; localStorage.setItem(DB_USERS_KEY, JSON.stringify(users)); renderAdminDashboard(); showToast(`Foydalanuvchi holati o'zgardi`, "check-circle"); }
+        }
+
+        function adminDeleteUser(email) {
+            if(!confirm(`Rostdan ham ${email} bazadan butunlay o'chirilsinmi?`)) return;
+            let users = JSON.parse(localStorage.getItem(DB_USERS_KEY) || '[]'); users = users.filter(u => u.email !== email); localStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+            let vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]'); vaults = vaults.filter(v => v.owner !== email); localStorage.setItem(DB_VAULT_KEY, JSON.stringify(vaults));
+            renderAdminDashboard(); showToast("O'chirildi", "trash-2");
+        }
+
+        function adminViewUserVault(email) {
+            document.getElementById('adminViewUserEmail').innerText = email;
+            const vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]').filter(v => v.owner === email);
+            const list = document.getElementById('adminViewUserList');
+            if(!vaults.length) { list.innerHTML = `<div class="col-span-full text-center text-slate-500 text-sm py-4">Foydalanuvchi hali parol saqlamagan.</div>`; } 
+            else {
+                list.innerHTML = vaults.map(item => `
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 flex flex-col gap-2">
+                        <div class="flex justify-between items-center"><span class="text-sky-400 font-bold text-sm">${escapeHtml(item.service)}</span><span class="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">${item.category}</span></div>
+                        <p class="text-xs text-slate-300 font-mono">Login: ${escapeHtml(item.username)}</p>
+                        <p class="text-xs text-amber-400 font-mono border-t border-slate-800 pt-2 border-dashed">Parol: ${escapeHtml(getDecodedPassword(item.password))}</p>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('adminViewUserModal').classList.remove('hidden');
+        }
+
+        // --- Foydalanuvchi (Tahlil va Shaxsiy Ombor) Logikasi ---
+        function toggleMainPassVisibility() {
+            const input = document.getElementById('mainPassInput'), eye = document.getElementById('mainPassEye');
+            if (input.type === 'password') { input.type = 'text'; eye.setAttribute('data-lucide', 'eye-off'); } else { input.type = 'password'; eye.setAttribute('data-lucide', 'eye'); }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function getSecureRandomPassword(length = 16) {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=";
+            let pass = ""; const randomValues = new Uint32Array(length); window.crypto.getRandomValues(randomValues);
+            for (let i = 0; i < length; i++) pass += chars[randomValues[i] % chars.length]; return pass;
+        }
+
+        function generateAndSetMainPass() { document.getElementById('mainPassInput').value = getSecureRandomPassword(16); showToast("Random parol qo'yildi", "sparkles"); }
+        function resetAnalysisState() { document.getElementById('resultsContainer').classList.add('hidden'); }
+        async function sha1(str) { const buffer = new TextEncoder("utf-8").encode(str); const digest = await crypto.subtle.digest("SHA-1", buffer); return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+
+        async function checkPwned(password) {
+            try {
+                const digest = await crypto.subtle.digest("SHA-1", new TextEncoder("utf-8").encode(password));
+                const hash = Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+                const prefix = hash.slice(0, 5), suffix = hash.slice(5);
+                const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+                if (!res.ok) return -1;
+                const text = await res.text();
+                for (let line of text.split('\n')) if (line.trim().startsWith(suffix)) return parseInt(line.split(':')[1]);
+                return 0;
+            } catch (e) { return -1; }
+        }
+
+        function startFullSecurityScan() {
+            const pass = document.getElementById('mainPassInput').value;
+            if (!pass) { showToast("Parol kiriting!", "alert-circle"); return; }
+
+            const duration = 15000; // 15 soniya
+            const overlay = document.getElementById('scanOverlay'), bar = document.getElementById('scanProgressBar'), pct = document.getElementById('scanPercent'), stepText = document.getElementById('scanStepText'), timeLeft = document.getElementById('scanTimeLeft');
+            overlay.classList.remove('hidden'); bar.style.width = '0%'; pct.innerText = '0%';
+
+            if (audioEnabled) {
+                try {
+                    scanMusic = new Audio('https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3'); 
+                    scanMusic.volume = 0.8; scanMusic.play().catch(e => console.log("Audio:", e));
+                } catch(e) {}
+            }
+
+            let pwnedCountPromise = Promise.race([ checkPwned(pass), new Promise(r => setTimeout(() => r(-1), duration)) ]);
+            const texts = ["Kriptografik entropiya hisoblanmoqda...", "Xavfsizlik protokollari tekshirilmoqda...", "O'g'irlangan parollar skanerlanmoqda...", "Naqsh va zaif nuqtalar aniqlanmoqda...", "Tahlil muvaffaqiyatli yakunlandi."];
+
+            let elapsed = 0; const intervalTime = 50; 
+            const timer = setInterval(async () => {
+                elapsed += intervalTime;
+                const progress = Math.min(100, (elapsed / duration) * 100);
+                bar.style.width = progress + '%'; pct.innerText = Math.floor(progress) + '%'; timeLeft.innerText = `~${Math.ceil((duration - elapsed) / 1000)}s qoldi`;
+
+                if (progress < 25) stepText.innerText = texts[0]; else if (progress < 50) stepText.innerText = texts[1]; else if (progress < 75) stepText.innerText = texts[2]; else if (progress < 99) stepText.innerText = texts[3]; else stepText.innerText = texts[4];
+                if (progress > 85 && scanMusic && scanMusic.volume > 0.1) scanMusic.volume -= 0.01;
+
+                if (elapsed >= duration) {
+                    clearInterval(timer);
+                    const pwnedCount = await pwnedCountPromise;
+                    if (audioEnabled) { try { const sc = new Audio('https://actions.google.com/sounds/v1/door_bells/sci_fi_door_bell.ogg'); sc.volume = 1.0; sc.play(); } catch(e){} }
+                    if (scanMusic) { scanMusic.pause(); scanMusic.currentTime = 0; }
+                    setTimeout(() => { overlay.classList.add('hidden'); finishAnalysis(pass, pwnedCount); }, 500); 
+                }
+            }, intervalTime);
+        }
+
+        function finishAnalysis(pass, pwnedCount) {
+            document.getElementById('resultsContainer').classList.remove('hidden');
+
+            let score = 0;
+            let up = pass.match(/[A-Z]/g)||[], low = pass.match(/[a-z]/g)||[], num = pass.match(/[0-9]/g)||[], sym = pass.match(/[^A-Za-z0-9]/g)||[];
+            if (pass.length >= 8) score += 20; if (pass.length >= 12) score += 20;
+            if (up.length) score += 15; if (low.length) score += 15; if (num.length) score += 15; if (sym.length) score += 15;
+
+            let foundPatterns = [];
+            if (/1234/.test(pass)) foundPatterns.push("1234");
+            if (/qwerty/i.test(pass)) foundPatterns.push("qwerty");
+            if (/(.)\1\1/.test(pass)) foundPatterns.push("takroriy belgilar");
+            if (foundPatterns.length > 0) score = Math.max(10, score - 25);
+            if (pwnedCount > 0) score = Math.max(0, score - 45);
+
+            let poolSize = 0;
+            if (up.length > 0) poolSize += 26; if (low.length > 0) poolSize += 26; if (num.length > 0) poolSize += 10; if (sym.length > 0) poolSize += 32;
+            if (poolSize === 0) poolSize = 26;
+            const entropy = Math.round(pass.length === 0 ? 0 : pass.length * Math.log2(poolSize));
+
+            document.getElementById('resScoreVal').innerText = score + '%'; document.getElementById('resScoreBar').style.width = score + '%';
+            
+            let crackTime = "Instant";
+            if (entropy > 80) crackTime = "Asrlar (Centuries)"; else if (entropy > 60) crackTime = "Yillar (Years)"; else if (entropy > 40) crackTime = "Oylar (Months)"; else if (entropy > 25) crackTime = "Soatlar (Hours)";
+            document.getElementById('resCrackTime').innerText = crackTime; document.getElementById('resEntropy').innerText = entropy + " bit";
+
+            const breachText = document.getElementById('resBreachText'), breachIcon = document.getElementById('resBreachIcon');
+            if (pwnedCount > 0) {
+                breachText.innerText = `${pwnedCount} marta sizgan!`; breachText.className = "text-sm font-bold text-red-400"; breachIcon.className = "w-6 h-6 text-red-400"; breachIcon.setAttribute('data-lucide', 'alert-triangle');
+            } else if (pwnedCount === 0) {
+                breachText.innerText = "Xavfsiz"; breachText.className = "text-sm font-bold text-emerald-400"; breachIcon.className = "w-6 h-6 text-emerald-400"; breachIcon.setAttribute('data-lucide', 'shield-check');
+            } else {
+                breachText.innerText = "Tarmoq xatosi"; breachText.className = "text-sm font-bold text-amber-400"; breachIcon.className = "w-6 h-6 text-amber-400"; breachIcon.setAttribute('data-lucide', 'wifi-off');
+            }
+
+            const setCard = (cardId, iconId, detId, ok, detailMsg) => {
+                const card = document.getElementById(cardId), icon = document.getElementById(iconId), det = document.getElementById(detId);
+                if (ok) { card.className = "bg-slate-950/90 border border-emerald-500/30 rounded-2xl p-4 space-y-2 border-l-4 border-l-emerald-500"; icon.setAttribute('data-lucide', 'check-circle-2'); icon.className = "w-4 h-4 text-emerald-400"; } 
+                else { card.className = "bg-slate-950/90 border border-red-500/30 rounded-2xl p-4 space-y-2 border-l-4 border-l-red-500"; icon.setAttribute('data-lucide', 'x-circle'); icon.className = "w-4 h-4 text-red-400"; }
+                det.innerText = detailMsg;
+            };
+
+            setCard('critLengthCard', 'critLengthIcon', 'critLengthDet', pass.length >= 12, `Uzunligi: ${pass.length} belgi.`);
+            setCard('critUpperCard', 'critUpperIcon', 'critUpperDet', up.length > 0, `Katta harflar: ${up.length} ta.`);
+            setCard('critLowerCard', 'critLowerIcon', 'critLowerDet', low.length > 0, `Kichik harflar: ${low.length} ta.`);
+            setCard('critNumCard', 'critNumIcon', 'critNumDet', num.length > 0, `Raqamlar: ${num.length} ta.`);
+            setCard('critSymCard', 'critSymIcon', 'critSymDet', sym.length > 0, `Maxsus belgilar: ${sym.length} ta.`);
+            setCard('critPatCard', 'critPatIcon', 'critPatDet', foundPatterns.length === 0, foundPatterns.length === 0 ? "Xavfli naqshlar yo'q." : `Topildi: ${foundPatterns.join(', ')}.`);
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            
+            const hist = JSON.parse(localStorage.getItem(DB_HISTORY_KEY) || '[]');
+            hist.unshift({ id: Date.now().toString(), owner: currentUserEmail, pass: btoa(encodeURIComponent(pass)), score, crackTime, date: new Date().toLocaleString('uz-UZ') });
+            if(hist.length > 50) hist.length = 50;
+            localStorage.setItem(DB_HISTORY_KEY, JSON.stringify(hist));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const allHist = JSON.parse(localStorage.getItem(DB_HISTORY_KEY) || '[]');
+            const myHist = allHist.filter(h => h.owner === currentUserEmail);
+            const container = document.getElementById('analysisHistoryList');
+            if(!myHist.length) { container.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">Tarix bo'sh.</p>`; return; }
+            
+            container.innerHTML = myHist.map(h => {
+                const rp = getDecodedPassword(h.pass).replace(/./g, '*');
+                const col = h.score >= 80 ? 'text-emerald-400' : (h.score >= 50 ? 'text-amber-400' : 'text-red-400');
+                return `
+                <div class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-xl p-3">
+                    <div class="flex flex-col"><span class="text-sm font-mono text-white tracking-widest">${rp}</span><span class="text-[10px] text-slate-500">${h.date}</span></div>
+                    <div class="flex flex-col text-right"><span class="text-xs font-bold ${col}">Baho: ${h.score}%</span><span class="text-[10px] text-slate-400">${h.crackTime}</span></div>
+                </div>`;
+            }).join('');
+        }
+
+        function clearHistory() {
+            if(!confirm("Tarixni tozalashni xohlaysizmi?")) return;
+            let hist = JSON.parse(localStorage.getItem(DB_HISTORY_KEY) || '[]');
+            hist = hist.filter(h => h.owner !== currentUserEmail);
+            localStorage.setItem(DB_HISTORY_KEY, JSON.stringify(hist)); renderHistory(); showToast("Tozalandi", "trash");
+        }
+
+        function getDecodedPassword(encodedPass) { try { return decodeURIComponent(atob(encodedPass)); } catch(e) { return encodedPass; } }
+        function toggleVaultPassVisibility(id, btn) { const inp = document.getElementById(id); if(inp.type==="password"){inp.type="text";btn.innerHTML=`<i data-lucide="eye-off" class="w-4 h-4"></i>`;}else{inp.type="password";btn.innerHTML=`<i data-lucide="eye" class="w-4 h-4"></i>`;} if (typeof lucide !== 'undefined') lucide.createIcons(); }
+        
+        function renderVault() {
+            const search = (document.getElementById('vaultSearch').value || '').toLowerCase();
+            const vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]').filter(v => v.owner === currentUserEmail);
+            const catFilter = document.getElementById('vaultCategoryFilter').value;
+            
+            let weakCount = 0, oldCount = 0, totalScoreAcc = 0;
+            vaults.forEach(p => {
+                const rp = getDecodedPassword(p.password); let s = rp.length >= 12 ? 80 : (rp.length >= 8 ? 50 : 20); totalScoreAcc += s;
+                if (s < 50) weakCount++; if (Math.floor((new Date() - new Date(p.updatedAt)) / 86400000) >= 90) oldCount++;
+            });
+
+            document.getElementById('vaultTotalCount').innerText = vaults.length;
+            document.getElementById('vaultAvgScore').innerText = (vaults.length > 0 ? Math.round(totalScoreAcc / vaults.length) : 0) + "%";
+            document.getElementById('vaultWeakCount').innerText = weakCount;
+            document.getElementById('vaultOldCount').innerText = oldCount;
+
+            const filtered = vaults.filter(p => {
+                const matchSearch = p.service.toLowerCase().includes(search) || p.username.toLowerCase().includes(search);
+                const matchCat = catFilter === 'ALL' || p.category === catFilter;
+                return matchSearch && matchCat;
+            });
+
+            const listEl = document.getElementById('vaultList');
+            if (!filtered.length) { listEl.innerHTML = `<div class="col-span-full text-center text-slate-500 py-10">Parollar topilmadi</div>`; return; }
+            
+            listEl.innerHTML = filtered.map(item => {
+                const rp = getDecodedPassword(item.password);
+                const isOld = Math.floor((new Date() - new Date(item.updatedAt)) / 86400000) >= 90;
+                return `
+                <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 relative group">
+                    <div class="flex justify-between items-start mb-3">
+                        <div><h4 class="font-extrabold text-emerald-400 text-sm">${escapeHtml(item.service)}</h4><p class="text-[11px] text-slate-400 font-mono">${escapeHtml(item.username)}</p></div>
+                        <div class="flex gap-1">
+                            <button type="button" onclick="openEditModal('${item.id}')" class="p-1.5 bg-slate-800 rounded hover:bg-emerald-500 hover:text-slate-900 transition"><i data-lucide="edit-3" class="w-3 h-3"></i></button>
+                            <button type="button" onclick="confirmManualDelete('${item.id}', '${escapeHtml(item.service)}')" class="p-1.5 bg-slate-800 rounded hover:bg-red-500 hover:text-white text-red-400 transition"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                        <input type="password" readonly value="${escapeHtml(rp)}" id="vPass-${item.id}" class="bg-transparent border-none w-full font-mono text-xs text-white outline-none">
+                        <button type="button" onclick="toggleVaultPassVisibility('vPass-${item.id}', this)" class="text-slate-400 hover:text-white"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button type="button" onclick="copyToClipboard('${escapeHtml(rp)}')" class="text-slate-400 hover:text-emerald-400"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-800">
+                        <span class="text-[9px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">${escapeHtml(item.category)}</span>
+                        ${isOld ? `<span class="text-[9px] text-purple-400 font-bold flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> Eski</span>` : `<span class="text-[9px] text-slate-500">${new Date(item.updatedAt).toLocaleDateString('uz-UZ')}</span>`}
+                    </div>
+                </div>`;
+            }).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function confirmManualDelete(id, name) { deleteTargetId = id; document.getElementById('deleteTargetName').innerText = name; document.getElementById('deleteModal').classList.remove('hidden'); }
+        document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+            if(!deleteTargetId) return;
+            let vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]'); vaults = vaults.filter(v => v.id !== deleteTargetId);
+            localStorage.setItem(DB_VAULT_KEY, JSON.stringify(vaults)); renderVault(); document.getElementById('deleteModal').classList.add('hidden'); showToast("O'chirildi", "trash-2");
+        });
+
+        function openAddModal() { document.getElementById('modalTitle').innerText = "Yangi Parol"; document.getElementById('editId').value = ""; document.getElementById('passForm').reset(); document.getElementById('passwordModal').classList.remove('hidden'); }
+        function openEditModal(id) {
+            const vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]'); const item = vaults.find(p => p.id === id); if(!item) return;
+            document.getElementById('modalTitle').innerText = "Tahrirlash"; document.getElementById('editId').value = item.id;
+            document.getElementById('serviceInput').value = item.service; document.getElementById('usernameInput').value = item.username;
+            document.getElementById('passwordInput').value = getDecodedPassword(item.password); document.getElementById('categoryInput').value = item.category;
+            document.getElementById('passwordModal').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('passwordModal').classList.add('hidden'); }
+        
+        function saveVaultPassword(e) {
+            e.preventDefault();
+            const editId = document.getElementById('editId').value, s = document.getElementById('serviceInput').value.trim(), u = document.getElementById('usernameInput').value.trim(), p = document.getElementById('passwordInput').value, c = document.getElementById('categoryInput').value;
+            let vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]');
+            if (editId) {
+                vaults = vaults.map(v => v.id === editId ? { ...v, service:s, username:u, password: btoa(encodeURIComponent(p)), category:c, updatedAt: new Date().toISOString() } : v);
+                showToast("Yangilandi", "check-circle");
+            } else {
+                vaults.unshift({ id: 'pass_'+Date.now(), owner: currentUserEmail, service:s, username:u, password: btoa(encodeURIComponent(p)), category:c, updatedAt: new Date().toISOString() });
+                showToast("Saqlandi", "shield-check");
+            }
+            localStorage.setItem(DB_VAULT_KEY, JSON.stringify(vaults)); renderVault(); closeModal();
+        }
+
+        // --- I18N, Til, Va Boshqalar ---
+        const I18N = {
+            uz: { appTitle: "Password Health & Vault", appDesc: "Interaktiv kiber-fon va Sokin Tahlil", export: "Eksport", import: "Import", addPassword: "Yangi Parol", liveTitle: "Kiber-Xavfsizlik Tahlil Tizimi", liveSub: "Parolingizni kiritib, 15 soniyalik musiqiy tahlilni boshlang", privacyBadge: "Lokal API (Serverga yuborilmaydi)", runBtn: "Tahlilni Boshlash", vStatScore: "Umumiy Vault Bali", vStatTotal: "Jami Saqlangan", vStatWeak: "Zaif Parollar", vStatOld: "Eski Parollar" },
+            en: { appTitle: "Password Health & Vault", appDesc: "Interactive cyber-bg and Silent Scan", export: "Export", import: "Import", addPassword: "New Password", liveTitle: "Cyber Security Analysis System", liveSub: "Enter your password for a deep 15s scan", privacyBadge: "k-Anonymity (Zero knowledge)", runBtn: "Start Security Scan", vStatScore: "Vault Score", vStatTotal: "Total Saved", vStatWeak: "Weak Passwords", vStatOld: "Old Passwords" }
+        };
+        function changeLanguage(langKey) {
+            currentLang = langKey; const dict = I18N[langKey] || I18N['uz'];
+            const setTxt = (id, key) => { const el = document.getElementById(id); if(el) el.innerText = dict[key]; };
+            setTxt('t-appTitle', 'appTitle'); setTxt('t-appDesc', 'appDesc'); setTxt('t-export', 'export'); setTxt('t-import', 'import'); setTxt('t-addPassword', 'addPassword'); setTxt('t-liveTesterTitle', 'liveTitle'); setTxt('t-liveTesterSub', 'liveSub'); setTxt('t-privacyBadge', 'privacyBadge'); setTxt('t-runBtnText', 'runBtn'); setTxt('t-vStatScore', 'vStatScore'); setTxt('t-vStatTotal', 'vStatTotal'); setTxt('t-vStatWeak', 'vStatWeak'); setTxt('t-vStatOld', 'vStatOld');
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled; if (!audioEnabled && scanMusic) { scanMusic.pause(); scanMusic.currentTime = 0; }
+            const btn = document.getElementById('soundBtn'); btn.className = `p-2 rounded-xl transition border border-slate-700/60 ${audioEnabled ? 'bg-slate-800/80 text-emerald-400' : 'bg-slate-900 text-slate-600'}`;
+            showToast(audioEnabled ? "Musiqa yoqildi" : "Musiqa o'chirildi", audioEnabled ? "music" : "volume-x");
+        }
+
+        function exportData() {
+            const vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]').filter(v => v.owner === currentUserEmail);
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(vaults, null, 2));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", `vault_backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dl); dl.click(); dl.remove(); showToast("Yuklab olindi", "download");
+        }
+
+        function importData(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        let vaults = JSON.parse(localStorage.getItem(DB_VAULT_KEY) || '[]');
+                        imported.forEach(i => { i.owner = currentUserEmail; vaults.unshift(i); });
+                        localStorage.setItem(DB_VAULT_KEY, JSON.stringify(vaults)); renderVault(); showToast("Tiklandi", "upload");
+                    }
+                } catch(err) { showToast("Xatolik", "alert-circle"); }
+                event.target.value = '';
+            }; reader.readAsText(file);
+        }
+
+        function copyToClipboard(text) { navigator.clipboard.writeText(text).then(()=>showToast("Nusxalandi!", "copy")).catch(()=>{ const t=document.createElement("input");document.body.appendChild(t);t.value=text;t.select();document.execCommand('copy');document.body.removeChild(t);showToast("Nusxalandi!","copy");}); }
+        function showToast(msg, icon) { const t=document.getElementById('toast'); document.getElementById('toastMsg').innerText=msg; document.getElementById('toastIcon').setAttribute('data-lucide',icon); if (typeof lucide !== 'undefined') lucide.createIcons(); t.classList.remove('translate-y-20','opacity-0'); setTimeout(()=>t.classList.add('translate-y-20','opacity-0'), 3000); }
+        function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+    </script>
+</body>
+</html>
